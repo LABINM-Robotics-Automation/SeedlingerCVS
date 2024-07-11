@@ -4,10 +4,10 @@ from datetime import datetime
 
 from multiprocessing.managers import ListProxy
 import json
+import csv
 
 from src.entorno_MODBUS import Config_server_db_brazos
 import seedlinger_cvs 
-import seedlinger_cvs_vp
 
 entorno=Config_server_db_brazos()
 Variable_IR=entorno.Brazo1.Registro_input
@@ -22,6 +22,48 @@ LINE_DOWN_4 = '\033[4B'
 LINE_RETURN='\r'
 LINE_FORMWARE='\033[20C'
 
+
+class Almacenar_data:
+    def __init__(self) -> None:
+        self.bandejaID:int=0
+        self.agujero:int=9999
+        self.calidad:int=0
+        self.tiempo:datetime=datetime.now()
+        self.tiempo_proceso:float=0
+        self.filename:str
+        self.is_save:bool=False
+        self.create_file()
+        self.escribir_data()
+
+    def create_file(self):
+        cdt = str(datetime.now())
+        fn = cdt.replace(" ", "_")
+        fn = fn.replace(":", "-")
+        fn= "LOGGER/Calidad_"+ fn+".csv"
+
+        self.filename=fn
+        print(f'Created Log File -> {self.filename}')
+
+        file = open(self.filename, 'w')
+        self.file = csv.writer(file)
+        self.file.writerow(['Tiempo','Agujero','calidad','Tiempo proceso'])           
+        
+    
+    def escribir_data(self):
+        if self.is_save:
+            #self.file.writerow([self.tiempo,self.agujero,self.calidad,self.tiempo_proceso])
+            with open(self.filename,'a') as LogFileObj:
+                LogFileObj.write("{},{},{},{}\n".format(self.tiempo,self.agujero,self.calidad,self.tiempo_proceso))
+            
+            
+            print("Linea: {},{},{},{}".format(self.tiempo,self.agujero,self.calidad,self.tiempo_proceso))
+            self.is_save=False
+        else:
+            pass
+            #print ("no data save")
+
+
+
 class SIM_calidad:
     def __init__(self) -> None:
         self.agujero:int=99
@@ -33,6 +75,7 @@ class SIM_calidad:
         #self.t_0_1:datetime
         self.t_0_0:float=0.0
         self.t_0_1:float=0.0
+        self.activation_time:datetime
 
         self.has_data:bool=False
 
@@ -276,6 +319,7 @@ class Variables_Control:
 
 varaible=Variables_Control()
 proc_cal=SIM_calidad()
+guardar_inforamcion=Almacenar_data()
 
 def update_bandeja_id():
     if varaible.control.actualizar_id:
@@ -298,7 +342,7 @@ def contador_calidad(calidad):
     elif calidad==3:
         proc_cal.cuenta_c3+=1
 
-def proceso_calidad(vision:seedlinger_cvs_vp.calidad):
+def proceso_calidad(vision:seedlinger_cvs.calidad):
     if varaible.estado.terminado and not varaible.control.iniciar_calidad:
         varaible.estado.set_libre()
         varaible.flag_procesando=False
@@ -320,7 +364,7 @@ def proceso_calidad(vision:seedlinger_cvs_vp.calidad):
             
         contador_calidad(calidad)
 
-        #calidad=3
+        #calidad=3   #fuerza a que haga recojo
 
         proc_cal.calidad = calidad #random.randint(1, 3)
 
@@ -334,7 +378,7 @@ def proceso_calidad(vision:seedlinger_cvs_vp.calidad):
         varaible.flag_calculado=False
         proc_cal.has_data=True
 
-    if varaible.flag_procesando:
+    if varaible.flag_procesando and not varaible.flag_calculado:
         #proc_cal.t_0_1=datetime.now()
         proc_cal.t_0_1=time.time()
         time_Delta=proc_cal.t_0_1 - proc_cal.t_0_0
@@ -344,11 +388,20 @@ def proceso_calidad(vision:seedlinger_cvs_vp.calidad):
         print("Cuenta:")
         print(f"C0={proc_cal.cuenta_c0}\tC1={proc_cal.cuenta_c1}\tC2={proc_cal.cuenta_c2}\tC3={proc_cal.cuenta_c3}")
         print("/"*80)
-        #if time_Delta.seconds>=1 and varaible.estado.trabajando:
+        
+        guardar_inforamcion.agujero=Variable_HR.ind_agujero+1
+        guardar_inforamcion.calidad=proc_cal.calidad
+        guardar_inforamcion.tiempo=proc_cal.activation_time
+        guardar_inforamcion.tiempo_proceso=time_Delta
+        guardar_inforamcion.bandejaID=Variable_HR.id_bandeja
+        guardar_inforamcion.is_save=True
+
+
         if varaible.estado.trabajando:
             #print(f"termino ya: {time_Delta.microseconds}")
             varaible.estado.set_terminado()
             varaible.flag_procesando=False
+            guardar_inforamcion.escribir_data()
     
     if varaible.control.iniciar_calidad and not varaible.control.reset and varaible.estado.libre:
         print ("inicio")
@@ -358,6 +411,7 @@ def proceso_calidad(vision:seedlinger_cvs_vp.calidad):
         proc_cal.has_data=False
         #proc_cal.t_0_0=datetime.now()
         proc_cal.t_0_0=time.time()
+        proc_cal.activation_time=datetime.now()
     
     
         
@@ -372,7 +426,7 @@ def main(list_ir:ListProxy,list_hr:ListProxy,debug=False):
     Variable_HR.update_variables2(data_cero)
     varaible.estado.set_libre()
 
-    vision=seedlinger_cvs_vp.calidad()
+    vision=seedlinger_cvs.calidad()
     
     #list_ir=Variable_IR.update_list_data()
 
@@ -394,7 +448,7 @@ def main(list_ir:ListProxy,list_hr:ListProxy,debug=False):
 
             proceso_calidad(vision)
 
-
+            
             reset_estado()           
             
             
@@ -415,6 +469,10 @@ def main(list_ir:ListProxy,list_hr:ListProxy,debug=False):
             ###Escritura de registro IR
             data=Variable_IR.update_list_data()
             list_ir[0]=data
+
+
+            ###SAVE DATA
+            #guardar_inforamcion.escribir_data()
 
             ###debug###
 

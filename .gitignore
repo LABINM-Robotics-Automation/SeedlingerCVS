@@ -1,8 +1,9 @@
 seedling-net/
+BACKUP_DATA/
 *.swp
 *.vim
 *.pyc
 *.whl
-vweights
+weights/
 *.pt
 *.jpg

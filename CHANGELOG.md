@@ -1,5 +1,9 @@
 # Change Log
 
+## [1.0.1] 2024-07-11
+## Add
+- Stable version. Seedlinger working properly and generating logs for image and detection.
+
 ## [1.0.0] 2024-06-08
 ## Add
 - First stable version of the Seedlinger Computer Vision Sytem running properly. Test *test_seedlinger_cvs.py* will run the main module to get the seedling classificacion prediction.

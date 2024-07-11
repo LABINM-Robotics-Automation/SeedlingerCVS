@@ -36,6 +36,16 @@ CLASSIFIER_WEIGHTS = os.getcwd() + lmp
 HORIZONTAL_DELIMITER = 240
 VERTICAL_DELIMITER = 330
 
+class carpetas:
+    def __init__(self) -> None:
+        pass
+    def crear_carpetas(self):
+        cdt = str(datetime.now())
+        fn = cdt.replace(" ", "_")
+        fn = fn.replace(":", "-")
+        path= "imagenes/"+ fn
+        os.makedirs(path)
+
 class calidad:
     def __init__(self) -> None:
         self.cam_h=cv2.VideoCapture(0)
@@ -82,8 +92,8 @@ class calidad:
             enable_fill_mode=True,
             texture_confidence_threshold=200
         )
-
         err = self.cam_v.open(init_params)
+        
         if err != sl.ERROR_CODE.SUCCESS:
             print(err)
             sys.exit()
@@ -92,6 +102,7 @@ class calidad:
         'La cámara Zed no esta ejecutandose correctamente,' + \
         'verificar su conexion'
         self.cam_v_ok=True
+        
 
     def v_cam_capture_img(self):
         depth_map = sl.Mat()
