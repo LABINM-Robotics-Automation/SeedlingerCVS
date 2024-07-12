@@ -160,3 +160,11 @@ if __name__=="__main__":
     td4_1df = get_prediction_evaluation(td3_df, 1)
     res = get_stats(td4_1df)
 
+    print("Generate dataset")
+    fns = len([n for n in os.listdir('./dataset/2/horizontal')])
+    if fns < 1:
+        print("Generating...")
+        get_seedling_images_dataset(td4_1df)
+    else:
+        print("Dataset not generated,  there're images previously generated.")
+        print("Delete them and run again the script")
