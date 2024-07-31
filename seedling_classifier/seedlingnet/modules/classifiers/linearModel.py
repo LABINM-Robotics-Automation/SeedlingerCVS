@@ -66,33 +66,42 @@ def crop_image(image, bbox, outSize):
    
     return cropped_image
 
+def getMaskArea(pilMask):
+    mask_array = np.array(pilMask)
+    area = np.sum(mask_array != 0)
+    return area
+
+
 class LinearModel:
     def __init__(self, weights_path):
         self.model = torch.load(weights_path)
-        self.meanArea = 19537.82421875 
-        self.stdArea = 5348.92578125
-        self.meanLength = 75.7072982788086 
-        self.stdLength = 16.3155517578125
+        self.meanArea = 11126.129921259842 
+        self.stdArea = 2670.4216664828896
+        self.meanLength = 72.38188976377953 
+        self.stdLength = 15.946278845775213
         self.treshold = 50
     
     @torch.no_grad()
     def classify(self, horizontalMask, verticalMask):
+
         horizontalMask = Image.fromarray(horizontalMask)
         horizontal_bbox = horizontalMask.getbbox()
-        horizontal_mask_cropped = crop_image(horizontalMask, horizontal_bbox, 130)
-        horizontal_area = np.array([float(calculate_mask_area(horizontal_mask_cropped))]).reshape(1,1)
+        maskHorCrop = crop_image(horizontalMask, horizontal_bbox, 130)
+        maskHorResz = maskHorCrop.resize((224,224), Image.LANCZOS)
+        areaHor = np.array([float(getMaskArea(maskHorResz))]).reshape(1,1)
 
         verticalMask = Image.fromarray(verticalMask)
         vertical_bbox = verticalMask.getbbox()
-        vertical_mask_cropped = crop_image(verticalMask, vertical_bbox, 170)
-        vertical_area = np.array([float(calculate_mask_area(vertical_mask_cropped))]).reshape(1,1)
+        maskVerCrop = crop_image(verticalMask,vertical_bbox, 130)
+        maskVerResz = maskVerCrop.resize((224,224), Image.LANCZOS)
+        areaVer = np.array([float(getMaskArea(maskVerResz))]).reshape(1,1)
 
-        areaTotal = vertical_area + horizontal_area
+        areaTotal = areaVer + areaHor
 
         areaTotalNormalized = normalizeTensor(torch.tensor(areaTotal), torch.tensor(self.meanArea), torch.tensor(self.stdArea))
         lengthNormalized = self.model(areaTotalNormalized)
         estimatedLength = lengthNormalized*self.stdLength + self.meanLength
-                
+        
         return estimatedLength.item() > self.treshold
     
 

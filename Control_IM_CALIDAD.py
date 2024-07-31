@@ -1,4 +1,3 @@
-import random
 import time
 from datetime import datetime
 
@@ -33,10 +32,11 @@ class Almacenar_data:
         self.filename:str
         self.is_save:bool=False
         self.create_file()
-        self.escribir_data()
+        #self.escribir_data()
 
     def create_file(self):
-        cdt = str(datetime.now())
+        hora=datetime.now()
+        cdt = str(hora.strftime("%Y-%m-%d %H:%M:%S"))
         fn = cdt.replace(" ", "_")
         fn = fn.replace(":", "-")
         fn= "LOGGER/Calidad_"+ fn+".csv"
@@ -44,17 +44,30 @@ class Almacenar_data:
         self.filename=fn
         print(f'Created Log File -> {self.filename}')
 
-        file = open(self.filename, 'w')
-        self.file = csv.writer(file)
-        self.file.writerow(['Tiempo','Agujero','calidad','Tiempo proceso'])           
+        with open(self.filename,'a') as file:
+            self.file = csv.writer(file)
+            self.file.writerow(['Tiempo','Agujero','calidad','Tiempo proceso'])          
+
+    def create_new_file(self,path):
+        hora=datetime.now()
+        cdt = str(hora.strftime("%Y-%m-%d %H:%M:%S"))
+        fn = cdt.replace(" ", "_")
+        fn = fn.replace(":", "-")
+        fn= path+"/Calidad_registrada_"+ fn+".csv"
+
+        self.filename=fn
+        print(f'Created Log File -> {self.filename}')
+
+        with open(self.filename,'a') as file:
+            self.file = csv.writer(file)
+            self.file.writerow(['Tiempo','Agujero','calidad','Tiempo proceso']) 
         
     
     def escribir_data(self):
         if self.is_save:
-            #self.file.writerow([self.tiempo,self.agujero,self.calidad,self.tiempo_proceso])
-            with open(self.filename,'a') as LogFileObj:
-                LogFileObj.write("{},{},{},{}\n".format(self.tiempo,self.agujero,self.calidad,self.tiempo_proceso))
-            
+            with open(self.filename,'a') as file:
+                csv_writer = csv.writer(file)
+                csv_writer.writerow([self.tiempo,self.agujero,self.calidad,self.tiempo_proceso])
             
             print("Linea: {},{},{},{}".format(self.tiempo,self.agujero,self.calidad,self.tiempo_proceso))
             self.is_save=False
@@ -146,30 +159,11 @@ class Variables_Control:
         self.control=self.Control()
         self.fallo  =self.Falla_code()
 
-        #self.json_file:dict
-
         self.id_bandeja:int=0
 
         self.flag_calculado:bool=False
         self.flag_procesando:bool=False
         self.flag_actualizar:bool=False
-
-        #self.leer_referencias()
-    
-    def leer_referencias(self):
-        with open("Parametros/imagen_referencias.json") as f:
-            parametros = json.load(f)
-        self.json_file=parametros
-        referencia=parametros['referencias']
-
-        self.ref_carril=referencia['carril']
-        self.ref_lev_x=referencia['lev_x']
-        #print(f"ref carril: {self.ref_carril}")
-        #print(f"ref lev_x: {self.ref_lev_x}")
-    
-    def escribir_referencia(self):
-        with open("Parametros/imagen_referencias.json",'w') as archivo_nuevo:
-            json.dump(self.json_file, archivo_nuevo)
 
     def update_status_WORD(self):
         self.estado.verificador=True
@@ -212,7 +206,6 @@ class Variables_Control:
         self.estado.status_word=self.convert_bool_array_to__word(array_bool)
 
     def update_fallo_WORD(self):
-        
         b0=self.fallo.err_no_data
         b1=False
         b2=False
@@ -343,6 +336,7 @@ def contador_calidad(calidad):
         proc_cal.cuenta_c3+=1
 
 def proceso_calidad(vision:seedlinger_cvs.calidad):
+    plantin=Variable_HR.ind_agujero+1
     if varaible.estado.terminado and not varaible.control.iniciar_calidad:
         varaible.estado.set_libre()
         varaible.flag_procesando=False
@@ -351,10 +345,11 @@ def proceso_calidad(vision:seedlinger_cvs.calidad):
         
     if varaible.flag_calculado and varaible.estado.trabajando:
         print("calculando")
+        plantin=Variable_HR.ind_agujero+1
         # TODO: here it comes the seedlinger computer vision system
         try:
             #calidad = seedlinger_cvs.run(agujero=Variable_HR.ind_agujero+1) 
-            calidad = vision.run(agujero=Variable_HR.ind_agujero+1)
+            calidad = vision.run(agujero=plantin)
         except Exception as error:
             calidad = 0
             import sys
@@ -400,8 +395,13 @@ def proceso_calidad(vision:seedlinger_cvs.calidad):
         if varaible.estado.trabajando:
             #print(f"termino ya: {time_Delta.microseconds}")
             varaible.estado.set_terminado()
+
             varaible.flag_procesando=False
             guardar_inforamcion.escribir_data()
+
+            if plantin ==72:
+                vision.carpetas.crearpath(vision.carpetas.bandeja+1)
+                guardar_inforamcion.create_new_file(vision.carpetas.path_logger)
     
     if varaible.control.iniciar_calidad and not varaible.control.reset and varaible.estado.libre:
         print ("inicio")
@@ -413,8 +413,6 @@ def proceso_calidad(vision:seedlinger_cvs.calidad):
         proc_cal.t_0_0=time.time()
         proc_cal.activation_time=datetime.now()
     
-    
-        
 def reset_estado():
     if varaible.control.reset:
         varaible.caso_reset()
@@ -427,6 +425,8 @@ def main(list_ir:ListProxy,list_hr:ListProxy,debug=False):
     varaible.estado.set_libre()
 
     vision=seedlinger_cvs.calidad()
+    vision.carpetas.crearpath(1)
+    guardar_inforamcion.create_new_file(vision.carpetas.path_logger)
     
     #list_ir=Variable_IR.update_list_data()
 

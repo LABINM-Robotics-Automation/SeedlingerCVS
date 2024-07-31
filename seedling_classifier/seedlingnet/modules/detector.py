@@ -87,6 +87,7 @@ sys.path.insert(2, 'detectors/yolov7')
 # from detectors.maskrcnn import MaskRCNN
 from detectors.yolo7 import Yolo7
 import cv2
+import numpy as np
 
 
 class Detector:
@@ -125,7 +126,9 @@ class Detector:
             return
         
         predictions = self.model.predict(input, conf_thres=threshold)
-        return predictions
+        if predictions == None: return None
+        bestPred = np.argmax([pred.conf for pred in predictions])  
+        return [predictions[bestPred]]
 
 
 if __name__=='__main__':

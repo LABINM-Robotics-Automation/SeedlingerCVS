@@ -4,6 +4,7 @@ import time
 import random
 import warnings
 from datetime import datetime
+import csv
 
 import cv2
 import numpy as np
@@ -23,31 +24,86 @@ h_detector = None
 v_detector = None
 linear = ""
 h_wpath = '/home/robot/seedlinger/SeedlingerCVS/seedling_classifier/' + \
-          'seedlingnet/modules/detectors/weights/yolov7-hseed.pt'
+          'seedlingnet/modules/detectors/weights/240723/hseed.pt'
+
 v_wpath = '/home/robot/seedlinger/SeedlingerCVS/seedling_classifier/' + \
-          'seedlingnet/modules/detectors/weights/yolov7-vseed.pt'
+          'seedlingnet/modules/detectors/weights/240723/vseed.pt'
+
 dpath = '/home/robot/seedlinger/SeedlingerCVS/seedling_classifier/' + \
         '/seedlingnet/modules/detectors/weights/opt.yaml'
 
 lmp = '/seedling_classifier/seedlingnet/modules/' + \
-      'classifiers/weights/linearModel.pt'
+      'classifiers/weights/240723/classifier.pt'
+
 CLASSIFIER_WEIGHTS = os.getcwd() + lmp
 
 HORIZONTAL_DELIMITER = 240
 VERTICAL_DELIMITER = 330
 
-class carpetas:
+class Almacenar_data:
     def __init__(self) -> None:
-        pass
-    def crear_carpetas(self):
+        self.bandejaID:int=0
+        self.agujero:int=9999
+        self.calidad:int=0
+        self.tiempo:datetime=datetime.now()
+        self.tiempo_proceso:float=0
+        self.filename:str
+        self.is_save:bool=False
+        self.create_file()
+        self.escribir_data()
+
+    def create_file(self):
         cdt = str(datetime.now())
         fn = cdt.replace(" ", "_")
         fn = fn.replace(":", "-")
-        path= "imagenes/"+ fn
-        os.makedirs(path)
+        fn= "LOGGER/Calidad_"+ fn+".csv"
+
+        self.filename=fn
+        print(f'Created Log File -> {self.filename}')
+
+        with open(self.filename,'a') as file:
+            self.file = csv.writer(file)
+            self.file.writerow(['Tiempo','Agujero','calidad','Tiempo proceso'])           
+        
+    
+    def escribir_data(self):
+        if self.is_save:
+            with open(self.filename,'a') as file:
+                csv_writer = csv.writer(file)
+                csv_writer.writerow([self.tiempo,self.agujero,self.calidad,self.tiempo_proceso])
+            
+            print("Linea: {},{},{},{}".format(self.tiempo,self.agujero,self.calidad,self.tiempo_proceso))
+            self.is_save=False
+
+
+class carpetas:
+    def __init__(self) -> None:
+        hora=datetime.now()
+        cdt = str(hora.strftime("%Y-%m-%d %H:%M:%S"))
+        fn = cdt.replace(" ", "_")
+        fn = fn.replace(":", "-")
+        self.path= os.getcwd()+"/imagenes/"+ fn
+        self.bandeja=1
+
+
+    def crearpath(self,bandeja:int):
+        self.bandeja=bandeja
+        self.path_vertical      =self.path+"/"+str(bandeja)+"/vertical"
+        self.path_horizontal    =self.path+"/"+str(bandeja)+"/horizontal"
+        self.path_mask          =self.path+"/"+str(bandeja)+"/mask"
+        self.path_proc_vertical     =self.path+"/"+str(bandeja)+"/procesadas/vertical"
+        self.path_proc_horizontal   =self.path+"/"+str(bandeja)+"/procesadas/horizontal"
+        self.path_logger            =self.path+"/"+str(bandeja)
+        os.makedirs(self.path_vertical,exist_ok=True)
+        os.makedirs(self.path_horizontal,exist_ok=True)
+        os.makedirs(self.path_mask,exist_ok=True)
+        os.makedirs(self.path_proc_vertical,exist_ok=True)
+        os.makedirs(self.path_proc_horizontal,exist_ok=True)
+        
 
 class calidad:
     def __init__(self) -> None:
+        self.carpetas=carpetas()
         self.cam_h=cv2.VideoCapture(0)
         self.cam_h_ok=False
         self.init_horizontal()
@@ -103,7 +159,6 @@ class calidad:
         'verificar su conexion'
         self.cam_v_ok=True
         
-
     def v_cam_capture_img(self):
         depth_map = sl.Mat()
         image = sl.Mat()
@@ -146,7 +201,7 @@ class calidad:
                     data=dpath,
                     device='cuda:0'
                 )
-            predictions = h_detector.predict(img, threshold=0.4)
+            predictions = h_detector.predict(img, threshold=0.3)
 
             if predictions is not None:
                 correct_predictions = []
@@ -285,19 +340,24 @@ class calidad:
 
     def _save_image(self,h_img, v_img, mask=None,agujero=0,calidad=0):
         try:
-            cdt = str(datetime.now())
+            hora=datetime.now()
+            cdt = str(hora.strftime("%Y-%m-%d %H:%M:%S"))
             fn = cdt.replace(" ", "_")
             fn = fn.replace(":", "-")
             fn += "_ll_"
             fn= fn + "A" + str(agujero) + "_C" + str(calidad)  +".jpg"
             fn1 = "v-"+ fn
-            imgpath = os.getcwd() + "/imagenes/vertical/" + fn1
+            
+            #imgpath = os.getcwd() + "/imagenes/vertical/" + fn1
+            imgpath = self.carpetas.path_vertical + "/" + fn1
             cv2.imwrite(imgpath, v_img)
             fn2 = "h-" + fn
-            imgpath = os.getcwd() + "/imagenes/horizontal/" + fn2
+            #imgpath = os.getcwd() + "/imagenes/horizontal/" + fn2
+            imgpath = self.carpetas.path_horizontal + "/" + fn2
             cv2.imwrite(imgpath, h_img)
             fn3= "v-mask-" + fn
-            imgpath = os.getcwd() + "/imagenes/mask/" + fn3
+           # imgpath = os.getcwd() + "/imagenes/mask/" + fn3
+            imgpath = self.carpetas.path_mask + "/" + fn3
             cv2.imwrite(imgpath, mask)
         except Exception as e:
             print(f"ERROR found when saving the image: {e}")
@@ -306,16 +366,19 @@ class calidad:
 
     def _save_image_proc(self,h_img, v_img,agujero=0,calidad=0):
         try:
-            cdt = str(datetime.now())
+            hora=datetime.now()
+            cdt = str(hora.strftime("%Y-%m-%d %H:%M:%S"))
             fn = cdt.replace(" ", "_")
             fn = fn.replace(":", "-")
             fn += "_ll_"
             fn= fn + "A" + str(agujero) + "_C" + str(calidad)  +".jpg"
             fn1 = "v-"+ fn
-            imgpath = os.getcwd() + "/imagenes/procesadas/vertical/" + fn1
+            #imgpath = os.getcwd() + "/imagenes/procesadas/vertical/" + fn1
+            imgpath = self.carpetas.path_proc_vertical + "/" + fn1
             cv2.imwrite(imgpath, v_img)
             fn2 = "h-" + fn
-            imgpath = os.getcwd() + "/imagenes/procesadas/horizontal/" + fn2
+            #imgpath = os.getcwd() + "/imagenes/procesadas/horizontal/" + fn2
+            imgpath = self.carpetas.path_proc_horizontal + "/" + fn2
             cv2.imwrite(imgpath, h_img)
         except Exception as e:
             print(f"ERROR found when saving the image: {e}")
@@ -371,3 +434,5 @@ class calidad:
         return tos
 
 
+if __name__ == "__main__":
+    carpe=carpetas()
